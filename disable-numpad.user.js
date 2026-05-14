@@ -2,11 +2,11 @@
 // @name         [YouTube] Disable Numpad Navigation
 // @namespace    https://github.com/myouisaur/YouTube
 // @icon         https://www.youtube.com/s/desktop/c90d512c/img/favicon.ico
-// @version      1.2
+// @version      1.3
 // @description  Disable numpad number keys for YouTube video navigation while keeping regular number keys
 // @author       Xiv
 // @match        *://*.youtube.com/*
-// @grant        none
+// @noframes
 // @updateURL    https://myouisaur.github.io/YouTube/disable-numpad.user.js
 // @downloadURL  https://myouisaur.github.io/YouTube/disable-numpad.user.js
 // ==/UserScript==
@@ -14,36 +14,59 @@
 (function() {
     'use strict';
 
-    // Function to handle keydown events
-    function handleKeydown(event) {
-        // Check if it's a numpad key (0-9 on numpad have keyCodes 96-105)
-        if (event.keyCode >= 96 && event.keyCode <= 105) {
-            const activeElement = document.activeElement;
+    // Prevent duplicate initialization during SPA navigations
+    if (window.__ytDisableNumpadRunning) return;
+    window.__ytDisableNumpadRunning = true;
 
-            // Don't block if we're typing in an input field
-            if (activeElement.tagName === 'INPUT' ||
-                activeElement.tagName === 'TEXTAREA' ||
-                activeElement.isContentEditable) {
-                return; // Allow typing in search boxes, comments, etc.
+    // Centralized configuration
+    const CONFIG = {
+        DEBUG: false,
+        TARGET_PATH: '/watch',
+        INPUT_TAGS: ['INPUT', 'TEXTAREA'],
+        PLAYER_CLASSES: ['html5-video-player', 'ytp-chrome-bottom'],
+        VIDEO_TAG: 'VIDEO'
+    };
+
+    /**
+     * Structured logging utility
+     */
+    function logDebug(message, ...args) {
+        if (CONFIG.DEBUG) {
+            console.log(`[YouTube Disable Numpad][Events] ${message}`, ...args);
+        }
+    }
+
+    /**
+     * Handles keydown events to intercept numpad inputs
+     */
+    function handleKeydown(event) {
+        // Modern check: verifies event.code matches 'Numpad0' through 'Numpad9'
+        if (/^Numpad\d$/.test(event.code)) {
+            // Defensive check in case activeElement is null
+            const activeElement = document.activeElement || document.body;
+
+            // Don't block if we're typing in an input field or contentEditable area
+            if (CONFIG.INPUT_TAGS.includes(activeElement.tagName) || activeElement.isContentEditable) {
+                return;
             }
 
             // Only block when video player area is focused AND we're on a video page
-            const isOnVideoPage = window.location.pathname.startsWith('/watch');
-            const isVideoPlayerFocused = activeElement.tagName === 'VIDEO' ||
-                                       activeElement === document.body ||
-                                       activeElement.classList.contains('html5-video-player') ||
-                                       activeElement.classList.contains('ytp-chrome-bottom');
+            const isOnVideoPage = window.location.pathname.startsWith(CONFIG.TARGET_PATH);
+            const isVideoPlayerFocused =
+                activeElement.tagName === CONFIG.VIDEO_TAG ||
+                activeElement === document.body ||
+                CONFIG.PLAYER_CLASSES.some(cls => activeElement.classList.contains(cls));
 
             if (isOnVideoPage && isVideoPlayerFocused) {
                 event.preventDefault();
                 event.stopPropagation();
-                console.log('Blocked numpad key:', event.key);
+                logDebug('Blocked numpad key:', event.code);
             }
         }
     }
 
-    // Add event listener to capture keydown events
+    // Capture keydown events in the capturing phase to intercept before YouTube
     document.addEventListener('keydown', handleKeydown, true);
 
-    console.log('YouTube Numpad Blocker loaded');
+    logDebug('Initialized successfully');
 })();
