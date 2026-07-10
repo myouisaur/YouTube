@@ -2,8 +2,8 @@
 // @name         [YouTube] Disable Numpad Navigation
 // @namespace    https://github.com/myouisaur/YouTube
 // @icon         https://www.youtube.com/s/desktop/c90d512c/img/favicon.ico
-// @version      1.3
-// @description  Disable numpad number keys for YouTube video navigation while keeping regular number keys
+// @version      1.7
+// @description  Disables numpad and page navigation keys on YouTube video pages to prevent accidental timeline jumping.
 // @author       Xiv
 // @match        *://*.youtube.com/*
 // @noframes
@@ -21,10 +21,12 @@
     // Centralized configuration
     const CONFIG = {
         DEBUG: false,
-        TARGET_PATH: '/watch',
-        INPUT_TAGS: ['INPUT', 'TEXTAREA'],
+        TARGET_PATHS: ['/watch', '/shorts/'],
+        INPUT_TAGS: new Set(['INPUT', 'TEXTAREA']), // Set used for O(1) lookups
         PLAYER_CLASSES: ['html5-video-player', 'ytp-chrome-bottom'],
-        VIDEO_TAG: 'VIDEO'
+        VIDEO_TAG: 'VIDEO',
+        BLOCKED_KEYS: ['Home', 'End', 'PageUp', 'PageDown'],
+        NUMPAD_REGEX: /^Numpad\d$/
     };
 
     /**
@@ -37,31 +39,49 @@
     }
 
     /**
-     * Handles keydown events to intercept numpad inputs
+     * Recursively finds the true active element, piercing through Shadow DOM boundaries
+     */
+    function getDeepActiveElement(root = document) {
+        const activeEl = root.activeElement;
+        if (activeEl && activeEl.shadowRoot && activeEl.shadowRoot.activeElement) {
+            return getDeepActiveElement(activeEl.shadowRoot);
+        }
+        return activeEl;
+    }
+
+    /**
+     * Handles keydown events to intercept numpad and navigation inputs
      */
     function handleKeydown(event) {
-        // Modern check: verifies event.code matches 'Numpad0' through 'Numpad9'
-        if (/^Numpad\d$/.test(event.code)) {
-            // Defensive check in case activeElement is null
-            const activeElement = document.activeElement || document.body;
+        const isNumpad = CONFIG.NUMPAD_REGEX.test(event.code);
+        const isBlockedNavKey = CONFIG.BLOCKED_KEYS.includes(event.code);
 
-            // Don't block if we're typing in an input field or contentEditable area
-            if (CONFIG.INPUT_TAGS.includes(activeElement.tagName) || activeElement.isContentEditable) {
-                return;
-            }
+        // Fast exit: if it's not a key we care about, do nothing
+        if (!isNumpad && !isBlockedNavKey) return;
 
-            // Only block when video player area is focused AND we're on a video page
-            const isOnVideoPage = window.location.pathname.startsWith(CONFIG.TARGET_PATH);
-            const isVideoPlayerFocused =
-                activeElement.tagName === CONFIG.VIDEO_TAG ||
-                activeElement === document.body ||
-                CONFIG.PLAYER_CLASSES.some(cls => activeElement.classList.contains(cls));
+        // Fast exit: ensure we are actually on a video or shorts page before doing DOM reads
+        const isOnVideoPage = CONFIG.TARGET_PATHS.some(path => window.location.pathname.startsWith(path));
+        if (!isOnVideoPage) return;
 
-            if (isOnVideoPage && isVideoPlayerFocused) {
-                event.preventDefault();
-                event.stopPropagation();
-                logDebug('Blocked numpad key:', event.code);
-            }
+        // Safely get the active element, even if it's inside a Web Component
+        const activeElement = getDeepActiveElement() || document.body;
+
+        // Don't block if we're typing in an input field or contentEditable area
+        if (CONFIG.INPUT_TAGS.has(activeElement.tagName) || activeElement.isContentEditable) {
+            return;
+        }
+
+        // Only block when video player area or main body is focused
+        const isVideoPlayerFocused =
+            activeElement.tagName === CONFIG.VIDEO_TAG ||
+            activeElement === document.body ||
+            CONFIG.PLAYER_CLASSES.some(cls => activeElement.classList.contains(cls));
+
+        if (isVideoPlayerFocused) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            logDebug('Blocked key:', event.code);
         }
     }
 
