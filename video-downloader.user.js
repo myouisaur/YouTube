@@ -2,17 +2,17 @@
 // @name         [YouTube] Video Downloader
 // @namespace    https://github.com/myouisaur/YouTube
 // @icon         https://www.youtube.com/s/desktop/c90d512c/img/favicon.ico
-// @version      4.0
+// @version      4.1
 // @description  Adds a button to download YouTube videos via cnvmp3.com in the background
 // @author       Xiv
 // @match        *://*.youtube.com/*
 // @match        *://*.cnvmp3.com/*
-// @noframes
 // @grant        GM_openInTab
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        window.close
-// @run-at       document-idle
+// @run-at       document-start
+// @noframes
 // @updateURL    https://myouisaur.github.io/YouTube/video-downloader.user.js
 // @downloadURL  https://myouisaur.github.io/YouTube/video-downloader.user.js
 // ==/UserScript==
